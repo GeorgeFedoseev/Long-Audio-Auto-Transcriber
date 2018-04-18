@@ -119,6 +119,27 @@ def save_wave_samples_to_file(wave_samples, n_channels, byte_width, sample_rate,
     out.writeframes(wave_samples)
     out.close()
 
+def run_deepspeech_for_wav(wav_file_path):
+    curr_dir_path = os.getcwd()
+    graph_path = os.path.join(curr_dir_path, "data/deepspeech_data/output_graph.pb")
+    alphabet_path = os.path.join(curr_dir_path, "data/deepspeech_data/alphabet.txt")
+
+    p = subprocess.Popen(["deepspeech",        
+         graph_path,
+         alphabet_path,
+         wav_file_path,         
+         ], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+    out, err = p.communicate()
+
+    #print out
+
+    if p.returncode != 0:
+        raise Exception("Failed to apply bandpass filter: %s" % str(err))
+
+    return out
+
+
 
 
 def test():
@@ -127,14 +148,18 @@ def test():
 
     curr_dir_path = os.getcwd()
 
-    test_audio_file_path = os.path.join(curr_dir_path, "data/test2.mp3")
+    test_audio_file_path = os.path.join(curr_dir_path, "data/test3.mp3")
+
+
 
     wav_vol_corr_path = os.path.join(curr_dir_path, "data/test_vol_corr.wav")
     if not os.path.exists(wav_vol_corr_path):
+        print("correct_volume")
         correct_volume(test_audio_file_path, wav_vol_corr_path)
 
     wav_filtered_path = os.path.join(curr_dir_path, "data/test_filtered.wav")
     if not os.path.exists(wav_filtered_path):    
+        print("apply_bandpass_filter")
         apply_bandpass_filter(wav_vol_corr_path, wav_filtered_path)
 
     wave_o = wave.open(wav_filtered_path, "r")
@@ -155,10 +180,22 @@ def test():
 
     os.makedirs(pieces_folder_path)
 
+
+    transcript_lines = []
     for i, piece in enumerate(pieces):
         piece_path = os.path.join(pieces_folder_path, "piece_%i.wav" % i)
         save_wave_samples_to_file(piece, n_channels=1, byte_width=2, sample_rate=16000, file_path=piece_path)
 
+        # run inference
+        text = run_deepspeech_for_wav(piece_path)
+        print(text)
+        transcript_lines.append(text)
+
+    # write whole transcript
+    transcript_path = os.path.join(curr_dir_path, "data/transcript.txt")
+    f = open(transcript_path, "w")
+    f.write("\n".join(transcript_lines))
+    f.close()
 
 if __name__ == "__main__":
     test()
