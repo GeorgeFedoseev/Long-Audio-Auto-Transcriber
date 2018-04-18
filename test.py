@@ -7,6 +7,8 @@ import webrtcvad
 import wave
 import shutil
 
+import audio_utils
+import deepspeech_utils
 
 def check_dependencies_installed():
     try:
@@ -17,38 +19,6 @@ def check_dependencies_installed():
         return False
 
     return True
-
-
-def apply_bandpass_filter(in_path, out_path):
-    # ffmpeg -i input.wav -acodec pcm_s16le -ac 1 -ar 16000 -af lowpass=3000,highpass=200 output.wav
-    p = subprocess.Popen(["ffmpeg", "-y",
-        #"-acodec", "pcm_s16le",
-         "-i", in_path,    
-         "-acodec", "pcm_s16le",
-         "-ac", "1",
-         "-af", "lowpass=3000,highpass=200",
-         "-ar", "16000",         
-         out_path
-         ], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
-    out, err = p.communicate()
-
-    if p.returncode != 0:
-        raise Exception("Failed to apply bandpass filter: %s" % str(err))
-
-def correct_volume(in_path, out_path, db=-10):
-    # sox input.wav output.wav gain -n -10
-    p = subprocess.Popen(["sox",
-         in_path,             
-         out_path,
-         "gain",
-         "-n", str(db)
-         ], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
-    out, err = p.communicate()
-
-    if p.returncode != 0:
-        raise Exception("Failed to correct volume: %s" % str(err))
 
 
 SPEECH_FRAME_SEC = 0.01
@@ -119,25 +89,7 @@ def save_wave_samples_to_file(wave_samples, n_channels, byte_width, sample_rate,
     out.writeframes(wave_samples)
     out.close()
 
-def run_deepspeech_for_wav(wav_file_path):
-    curr_dir_path = os.getcwd()
-    graph_path = os.path.join(curr_dir_path, "data/deepspeech_data/output_graph.pb")
-    alphabet_path = os.path.join(curr_dir_path, "data/deepspeech_data/alphabet.txt")
 
-    p = subprocess.Popen(["deepspeech",        
-         graph_path,
-         alphabet_path,
-         wav_file_path,         
-         ], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
-    out, err = p.communicate()
-
-    #print out
-
-    if p.returncode != 0:
-        raise Exception("Failed to apply bandpass filter: %s" % str(err))
-
-    return out
 
 
 
@@ -155,12 +107,12 @@ def test():
     wav_vol_corr_path = os.path.join(curr_dir_path, "data/test_vol_corr.wav")
     if not os.path.exists(wav_vol_corr_path):
         print("correct_volume")
-        correct_volume(test_audio_file_path, wav_vol_corr_path)
+        audio_utils.correct_volume(test_audio_file_path, wav_vol_corr_path, db=-12)
 
     wav_filtered_path = os.path.join(curr_dir_path, "data/test_filtered.wav")
     if not os.path.exists(wav_filtered_path):    
         print("apply_bandpass_filter")
-        apply_bandpass_filter(wav_vol_corr_path, wav_filtered_path)
+        audio_utils.apply_bandpass_filter(wav_vol_corr_path, wav_filtered_path, low=2500)
 
     wave_o = wave.open(wav_filtered_path, "r")
 
@@ -187,7 +139,7 @@ def test():
         save_wave_samples_to_file(piece, n_channels=1, byte_width=2, sample_rate=16000, file_path=piece_path)
 
         # run inference
-        text = run_deepspeech_for_wav(piece_path)
+        text = deepspeech_utils.run_deepspeech_for_wav(piece_path, use_lm=False)
         print(text)
         transcript_lines.append(text)
 
@@ -198,7 +150,8 @@ def test():
     f.close()
 
 if __name__ == "__main__":
-    test()
+    if check_dependencies_installed():
+        test()
 
 
 

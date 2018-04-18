@@ -10,7 +10,10 @@ import signal
 import pyaudio
 
 import os
-import subprocess
+
+
+import deepspeech_utils
+
 
 from array import array
 from struct import pack
@@ -74,56 +77,9 @@ def normalize(snd_data):
         r.append(int(i * times))
     return r
 
-def apply_bandpass_filter(in_path, out_path):
-    # ffmpeg -i input.wav -acodec pcm_s16le -ac 1 -ar 16000 -af lowpass=3000,highpass=200 output.wav
-    p = subprocess.Popen(["ffmpeg", "-y",
-        #"-acodec", "pcm_s16le",
-         "-i", in_path,    
-         "-acodec", "pcm_s16le",
-         "-ac", "1",
-         "-af", "lowpass=3000,highpass=200",
-         "-ar", "16000",         
-         out_path
-         ], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-    out, err = p.communicate()
 
-    if p.returncode != 0:
-        raise Exception("Failed to apply bandpass filter: %s" % str(err))
 
-def correct_volume(in_path, out_path, db=-10):
-    # sox input.wav output.wav gain -n -10
-    p = subprocess.Popen(["sox",
-         in_path,             
-         out_path,
-         "gain",
-         "-n", str(db)
-         ], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
-    out, err = p.communicate()
-
-    if p.returncode != 0:
-        raise Exception("Failed to correct volume: %s" % str(err))
-
-def run_deepspeech_for_wav(wav_file_path):
-    curr_dir_path = os.getcwd()
-    graph_path = os.path.join(curr_dir_path, "data/deepspeech_data/output_graph.pb")
-    alphabet_path = os.path.join(curr_dir_path, "data/deepspeech_data/alphabet.txt")
-
-    p = subprocess.Popen(["deepspeech",        
-         graph_path,
-         alphabet_path,
-         wav_file_path,         
-         ], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
-    out, err = p.communicate()
-
-    #print out
-
-    if p.returncode != 0:
-        raise Exception("Failed to apply bandpass filter: %s" % str(err))
-
-    return out
 
 signal.signal(signal.SIGINT, handle_int)
 
@@ -199,18 +155,19 @@ while not leave:
     raw_data.reverse()
     raw_data = normalize(raw_data)
 
-    path = "recording.wav"
+    curr_dir_path = os.getcwd()
+    path = os.path.join(curr_dir_path, "data/recording.wav")
     record_to_file(path, raw_data, 2)
 
     #correct_volume_path = path+"_vol_corr.wav"
     #correct_volume(path, correct_volume_path)
 
-    filtered_path = path+"_filtered.wav"
-    apply_bandpass_filter(path, filtered_path)
+    #filtered_path = path+"_filtered.wav"
+    #apply_bandpass_filter(path, filtered_path)
 
 
     print "\n-------------"
-    print run_deepspeech_for_wav(filtered_path)
+    print deepspeech_utils.run_deepspeech_for_wav(path)
     print "-------------"
 
     #leave = True
